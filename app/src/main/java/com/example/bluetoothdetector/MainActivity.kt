@@ -1,6 +1,5 @@
 package com.example.bluetoothdetector
 
-import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
@@ -9,18 +8,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.view.View
 import android.widget.Toast
-import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
 import com.example.bluetoothdetector.adapter.DeviceItemAdapter
 import com.example.bluetoothdetector.databinding.ActivityMainBinding
-import kotlinx.coroutines.CoroutineScope
 
 
 class MainActivity : AppCompatActivity() {
