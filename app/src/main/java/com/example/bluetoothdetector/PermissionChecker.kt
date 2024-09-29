@@ -5,31 +5,31 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
+import android.util.Log
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 
 class PermissionChecker {
 
     companion object {
-        @SuppressLint("InlinedApi")
+
+
         fun checkBluetoothConnectionPermission(context: Context, onPermissionGranted: () -> Unit) {
-            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED &&
-                ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
-                ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED &&
-                ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED &&
-                ActivityCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADMIN) != PackageManager.PERMISSION_GRANTED
-            ) {
-
-                ActivityCompat.requestPermissions(context as Activity, arrayOf(
-                    Manifest.permission.BLUETOOTH_CONNECT,
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.BLUETOOTH_SCAN,
-                    Manifest.permission.BLUETOOTH_ADVERTISE,
-                    Manifest.permission.BLUETOOTH_ADMIN
-                ), 124)
-
+            val permissions = if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S){
+                Log.d("PermissionChecker", "Version SDK: ${Build.VERSION.SDK_INT}")
+                 arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.ACCESS_FINE_LOCATION)
             }else {
-                onPermissionGranted()
+                Log.d("PermissionChecker", "Version SDK: ${Build.VERSION.SDK_INT}")
+                arrayOf(Manifest.permission.BLUETOOTH, Manifest.permission.BLUETOOTH_ADMIN, Manifest.permission.ACCESS_FINE_LOCATION)
             }
+
+            if(permissions.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED  }){
+                onPermissionGranted()
+            }else{
+                ActivityCompat.requestPermissions(context as Activity, permissions, 124)
+            }
+
         }
     }
 

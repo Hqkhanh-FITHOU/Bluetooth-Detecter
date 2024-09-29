@@ -1,7 +1,6 @@
 package com.example.bluetoothdetector
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
@@ -14,15 +13,15 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.View
-import android.widget.CompoundButton
 import android.widget.Toast
-import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import com.example.bluetoothdetector.adapter.DeviceItemAdapter
 import com.example.bluetoothdetector.databinding.ActivityMainBinding
+import kotlinx.coroutines.CoroutineScope
+
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -30,11 +29,40 @@ class MainActivity : AppCompatActivity() {
     private lateinit var bluetoothManager: BluetoothManager
     private lateinit var bluetoothAdapter: BluetoothAdapter
 
-    private lateinit var mydeviceItemAdapter: DeviceItemAdapter;
-    private lateinit var newdeviceItemAdapter: DeviceItemAdapter;
+    private lateinit var myDeviceItemAdapter: DeviceItemAdapter
+    private lateinit var newDeviceItemAdapter: DeviceItemAdapter
 
     private lateinit var myDevices: MutableSet<BluetoothDevice>
     private val newDetectedDevices = mutableSetOf<BluetoothDevice>()
+
+
+
+
+
+    private val enableBluetoothLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if(result.resultCode == RESULT_OK){
+            checkBluetoothState()
+            Toast.makeText(this, "Bluetooth has been enabled", Toast.LENGTH_SHORT).show()
+            startBluetoothDiscovery()
+        } else {
+            checkBluetoothState()
+            Toast.makeText(this, "Bluetooth has been disabled", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
+//    private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()){ permissions ->
+//        val bluetoothScanGranted = permissions[Manifest.permission.BLUETOOTH_SCAN] ?: false
+//        val locationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+//
+//        if (bluetoothScanGranted && locationGranted) {
+//            startBluetoothDiscovery()
+//        } else {
+//            Toast.makeText(this, "Needs permission to scan bluetooth", Toast.LENGTH_SHORT).show()
+//        }
+//    }
+
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,35 +72,51 @@ class MainActivity : AppCompatActivity() {
         bluetoothManager = getSystemService(BluetoothManager::class.java)
         bluetoothAdapter = bluetoothManager.getAdapter()
 
-        newdeviceItemAdapter = DeviceItemAdapter(newDetectedDevices)
-        binding.newDetectedDevicesRecyclerView.adapter = newdeviceItemAdapter
+        newDeviceItemAdapter = DeviceItemAdapter(newDetectedDevices)
+        binding.newDetectedDevicesRecyclerView.adapter = newDeviceItemAdapter
 
-        if(bluetoothAdapter == null){
-            Toast.makeText(this, "Bluetooth is not available", Toast.LENGTH_SHORT).show()
-        }else {
-            Toast.makeText(this, "Bluetooth is available", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Bluetooth is available", Toast.LENGTH_SHORT).show()
 
-            val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
-            PermissionChecker.checkBluetoothConnectionPermission(this) {
-                startActivityForResult(enableBtIntent, 123)
-            }
-            checkBluetoothState()
-        }
-
-
+        requestForEnableBluetooth()
 
         binding.discoverBtn.setOnClickListener {
-            startBluetoothDiscovery()
+            if(bluetoothAdapter.isEnabled){
+                startBluetoothDiscovery()
+            }else {
+                requestForEnableBluetooth()
+            }
         }
 
     }
 
-    private fun showMyDevices(){
-        if(myDevices.isEmpty()){
+
+
+
+
+    private fun requestForEnableBluetooth(){
+        PermissionChecker.checkBluetoothConnectionPermission(this){
+            try{
+                val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+                enableBluetoothLauncher.launch(enableBtIntent)
+            }catch (e: Exception){
+                Toast.makeText(this, e.toString(), Toast.LENGTH_SHORT).show()
+            }
+
+
+
+        }
+        checkBluetoothState()
+    }
+
+
+
+
+    private fun showMyDevices() {
+        if (myDevices.isEmpty()) {
             binding.myDevicesRecyclerView.visibility = View.GONE
             binding.text4.visibility = View.VISIBLE
 
-        }else {
+        } else {
             binding.myDevicesRecyclerView.visibility = View.VISIBLE
             binding.text4.visibility = View.GONE
         }
@@ -80,76 +124,95 @@ class MainActivity : AppCompatActivity() {
 
 
 
+
+
     private fun checkBluetoothState() {
         if (!bluetoothAdapter.isEnabled) {
             binding.text1.text = "Bluetooth is disabled"
 
-        }else {
+        } else {
             binding.text1.text = "Bluetooth is enabled"
 
             PermissionChecker.checkBluetoothConnectionPermission(this) {
                 myDevices = bluetoothAdapter.bondedDevices
             }
-            mydeviceItemAdapter = DeviceItemAdapter(myDevices)
-            binding.myDevicesRecyclerView.adapter = mydeviceItemAdapter
+            myDeviceItemAdapter = DeviceItemAdapter(myDevices)
+            binding.myDevicesRecyclerView.adapter = myDeviceItemAdapter
             showMyDevices()
         }
     }
 
 
+
+
+
     private fun startBluetoothDiscovery() {
-        PermissionChecker.checkBluetoothConnectionPermission(this){
-            if(bluetoothAdapter.isDiscovering){
-                bluetoothAdapter.cancelDiscovery()
+
+        PermissionChecker.checkBluetoothConnectionPermission(this) {
+            if (bluetoothAdapter.isDiscovering) {
+                Toast.makeText(this, "Discovery is already running", Toast.LENGTH_SHORT).show()
+            }else{
+                bluetoothAdapter.startDiscovery()
+                Toast.makeText(this, "Discovery is running", Toast.LENGTH_SHORT).show()
             }
-            bluetoothAdapter.startDiscovery()
         }
         val filter = IntentFilter(BluetoothDevice.ACTION_FOUND)
         registerReceiver(receiver, filter)
         showDetectedDevices()
+        showMyDevices()
     }
 
 
-    private fun showDetectedDevices(){
-        if(newDetectedDevices.isEmpty()){
+
+
+    private fun showDetectedDevices() {
+        if (newDetectedDevices.isEmpty()) {
             binding.newDetectedDevicesRecyclerView.visibility = View.GONE
             binding.text5.visibility = View.VISIBLE
             Toast.makeText(this, "No devices found", Toast.LENGTH_SHORT).show()
-        }else {
+        } else {
             binding.newDetectedDevicesRecyclerView.visibility = View.VISIBLE
             binding.text5.visibility = View.GONE
-            Toast.makeText(this, "${newDetectedDevices.size} devices found", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "${newDetectedDevices.size} devices found", Toast.LENGTH_SHORT)
+                .show()
         }
     }
 
+
+
+
     private val receiver = object : BroadcastReceiver() {
 
-        @SuppressLint("NewApi")
         override fun onReceive(context: Context?, intent: Intent?) {
             val action = intent?.action.toString()
-            when(action) {
+            when (action) {
                 BluetoothDevice.ACTION_FOUND -> {
-                    val device: BluetoothDevice = intent?.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)!!
-                    device.let {
-                        PermissionChecker.checkBluetoothConnectionPermission(this@MainActivity) {
-                            Toast.makeText(
-                                this@MainActivity,
-                                "Device found: ${device.name}",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                        newDetectedDevices.add(device)
-                        updateRecyclerView()
+                    val device: BluetoothDevice? = intent?.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+                    PermissionChecker.checkBluetoothConnectionPermission(this@MainActivity) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Device found: ${device!!.name}",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
+                    newDetectedDevices.add(device!!)
+                    updateDetectedRecyclerView()
                 }
             }
         }
     }
 
-    private fun updateRecyclerView() {
-        newdeviceItemAdapter.notifyDataSetChanged()
+
+
+
+
+    private fun updateDetectedRecyclerView() {
+        newDeviceItemAdapter.notifyDataSetChanged()
         showDetectedDevices()
     }
+
+
+
 
     override fun onDestroy() {
         super.onDestroy()
@@ -157,14 +220,8 @@ class MainActivity : AppCompatActivity() {
         unregisterReceiver(receiver)
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        when(requestCode){
-            123 -> {
-                checkBluetoothState()
-            }
-        }
-    }
+
+
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -172,12 +229,12 @@ class MainActivity : AppCompatActivity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        when(requestCode){
+        when (requestCode) {
             124 -> {
-                if(grantResults.isNotEmpty() && grantResults[0] != PackageManager.PERMISSION_GRANTED) {
+                if (grantResults.isNotEmpty() && grantResults[0] != PackageManager.PERMISSION_GRANTED) {
                     binding.text1.text = "Bluetooth is denied"
                     binding.progressBar.visibility = View.GONE
-                }else {
+                } else {
                     checkBluetoothState()
                     binding.progressBar.visibility = View.VISIBLE
                 }
@@ -185,5 +242,9 @@ class MainActivity : AppCompatActivity() {
 
         }
     }
+
+
+
+
 
 }
