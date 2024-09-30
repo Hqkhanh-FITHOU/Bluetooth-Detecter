@@ -146,8 +146,10 @@ class MainActivity : AppCompatActivity() {
             if (bluetoothAdapter.isDiscovering) {
                 Toast.makeText(this, "Discovery is already running", Toast.LENGTH_SHORT).show()
             }else{
-                bluetoothAdapter.startDiscovery()
-                Toast.makeText(this, "Discovery is running", Toast.LENGTH_SHORT).show()
+                PermissionChecker.checkBluetoothConnectionPermission(this){
+                    bluetoothAdapter.startDiscovery()
+                    Toast.makeText(this, "Discovery is running", Toast.LENGTH_SHORT).show()
+                }
             }
         }
         val filter = IntentFilter(BluetoothDevice.ACTION_FOUND)
@@ -210,7 +212,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-
         unregisterReceiver(receiver)
     }
 
@@ -224,7 +225,7 @@ class MainActivity : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         when (requestCode) {
-            124 -> {
+            PermissionChecker.REQUEST_BLUETOOTH_PERMISSIONS -> {
                 if (grantResults.isNotEmpty() && grantResults[0] != PackageManager.PERMISSION_GRANTED) {
                     binding.text1.text = "Bluetooth is denied"
                     binding.progressBar.visibility = View.GONE

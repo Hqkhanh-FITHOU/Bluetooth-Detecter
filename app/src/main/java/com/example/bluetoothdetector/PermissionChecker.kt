@@ -13,7 +13,7 @@ import androidx.core.content.ContextCompat
 class PermissionChecker {
 
     companion object {
-
+        public const val REQUEST_BLUETOOTH_PERMISSIONS:Int = 124
 
         fun checkBluetoothConnectionPermission(context: Context, onPermissionGranted: () -> Unit) {
             val permissions = if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S){
@@ -27,7 +27,7 @@ class PermissionChecker {
             if(permissions.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED  }){
                 onPermissionGranted()
             }else{
-                ActivityCompat.requestPermissions(context as Activity, permissions, 124)
+                ActivityCompat.requestPermissions(context as Activity, permissions, REQUEST_BLUETOOTH_PERMISSIONS)
             }
 
         }
