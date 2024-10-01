@@ -2,30 +2,62 @@
 <androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/diviceItemLayout"
-    android:layout_margin="5dp">
+    android:layout_margin="5dp"
+    app:cardCornerRadius="30dp"
+    >
 
-    <LinearLayout
+
+
+    <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="10dp"
-        android:orientation="vertical">
+        android:orientation="horizontal"
+        android:padding="10dp">
 
-        <TextView
-            android:id="@+id/diviceName"
+        <LinearLayout
+            android:id="@+id/info_device"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Divice name"
-            android:textSize="16dp"
-            android:textStyle="bold"/>
+            android:paddingStart="15dp"
+            android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/physicalAddress"
+            <TextView
+                android:id="@+id/diviceName"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Divice name"
+                android:textSize="16dp"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:id="@+id/physicalAddress"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Physical address"/>
+
+        </LinearLayout>
+
+        <ProgressBar
+            android:id="@+id/progress_circular"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:visibility="gone"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="40dp"/>
+
+        <Button
+            android:id="@+id/btn_connect"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Physical address"/>
-
-    </LinearLayout>
+            android:layout_height="40dp"
+            android:gravity="center"
+            android:text="connect"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:layout_marginEnd="6dp"/>
+    </RelativeLayout>
 
 
 

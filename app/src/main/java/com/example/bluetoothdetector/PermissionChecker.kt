@@ -17,10 +17,8 @@ class PermissionChecker {
 
         fun checkBluetoothConnectionPermission(context: Context, onPermissionGranted: () -> Unit) {
             val permissions = if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S){
-                Log.d("PermissionChecker", "Version SDK: ${Build.VERSION.SDK_INT}")
                  arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.ACCESS_FINE_LOCATION)
             }else {
-                Log.d("PermissionChecker", "Version SDK: ${Build.VERSION.SDK_INT}")
                 arrayOf(Manifest.permission.BLUETOOTH, Manifest.permission.BLUETOOTH_ADMIN, Manifest.permission.ACCESS_FINE_LOCATION)
             }
 
@@ -29,7 +27,7 @@ class PermissionChecker {
             }else{
                 ActivityCompat.requestPermissions(context as Activity, permissions, REQUEST_BLUETOOTH_PERMISSIONS)
             }
-
+            Log.d("PermissionChecker", "Version SDK: ${Build.VERSION.SDK_INT}")
         }
     }
 

@@ -6,15 +6,19 @@ import android.content.pm.PackageManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.TextView
 import androidx.core.app.ActivityCompat
 import androidx.recyclerview.widget.RecyclerView
+import com.example.bluetoothdetector.OnClickToConnectBluetoothDeviceListener
 import com.example.bluetoothdetector.PermissionChecker
 import com.example.bluetoothdetector.R
 
 class DeviceItemAdapter(
-    private val list: Set<BluetoothDevice>
+    private val list: Set<BluetoothDevice>,
+    private var onClickToConnectBluetoothDeviceListener: OnClickToConnectBluetoothDeviceListener? = null
 ) : RecyclerView.Adapter<DeviceItemAdapter.DeviceItemHolder>() {
+
 
     override fun onCreateViewHolder(
         parent: ViewGroup,
@@ -24,6 +28,10 @@ class DeviceItemAdapter(
         return DeviceItemHolder(view)
     }
 
+    fun setOnClickToConnectBluetoothDeviceListener(listener: OnClickToConnectBluetoothDeviceListener) {
+        this.onClickToConnectBluetoothDeviceListener = listener
+    }
+
     override fun onBindViewHolder(holder: DeviceItemAdapter.DeviceItemHolder, position: Int) {
         val device = list.elementAt(position)
 
@@ -31,6 +39,9 @@ class DeviceItemAdapter(
             holder.deviceName.text = device.name
         }
         holder.physicalAddress.text = device.address
+        holder.buttonConnect.setOnClickListener {
+            onClickToConnectBluetoothDeviceListener?.clickToConnect(holder.buttonConnect, device)
+        }
     }
 
     override fun getItemCount(): Int {
@@ -44,6 +55,7 @@ class DeviceItemAdapter(
         val deviceName = itemView.findViewById<TextView>(R.id.diviceName)
         val physicalAddress = itemView.findViewById<TextView>(R.id.physicalAddress)
         val diviceItemLayout = itemView.findViewById<ViewGroup>(R.id.diviceItemLayout)
+        val buttonConnect = itemView.findViewById<Button>(R.id.btn_connect)
     }
 
 

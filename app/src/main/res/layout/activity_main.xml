@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main"
@@ -83,7 +83,6 @@
             android:textColor="@color/black"
             android:textSize="17sp"
             android:background="@color/light_gray"
-            android:layout_marginTop="30dp"
             android:textStyle="bold"
             android:layout_gravity="start"
             android:paddingStart="8dp"
@@ -124,4 +123,4 @@
 
     </LinearLayout>
 
-</androidx.core.widget.NestedScrollView>
+</ScrollView>
