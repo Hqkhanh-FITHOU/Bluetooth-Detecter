@@ -1,10 +1,11 @@
 package com.example.bluetoothdetector
 
-import android.Manifest
+
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -18,7 +19,6 @@ import android.widget.Button
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
 import com.example.bluetoothdetector.adapter.DeviceItemAdapter
 import com.example.bluetoothdetector.databinding.ActivityMainBinding
 import java.io.IOException
@@ -73,7 +73,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         bluetoothManager = getSystemService(BluetoothManager::class.java)
-        bluetoothAdapter = bluetoothManager.getAdapter()
+        bluetoothAdapter = bluetoothManager.adapter
 
         newDeviceItemAdapter = DeviceItemAdapter(newDetectedDevices)
         clickConnectDevice(newDeviceItemAdapter)
@@ -91,7 +91,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-
+        val acceptThread = AcceptThread()
+        acceptThread.start()
     }
 
     private fun clickConnectDevice(adapter: DeviceItemAdapter) {
@@ -104,7 +105,6 @@ class MainActivity : AppCompatActivity() {
                     try {
                         val connectThread = ConnectThread(device, button)
                         connectThread.start()
-
                     } catch (e: IOException) {
                         Toast.makeText(this@MainActivity, e.toString(), Toast.LENGTH_SHORT)
                             .show()
@@ -201,8 +201,8 @@ class MainActivity : AppCompatActivity() {
                 BluetoothDevice.ACTION_FOUND -> {
                     val device: BluetoothDevice? =
                         intent?.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
-                    PermissionChecker.checkBluetoothConnectionPermission(this@MainActivity){
-                        if (device?.name != null){
+                    PermissionChecker.checkBluetoothConnectionPermission(this@MainActivity) {
+                        if (device?.name != null) {
                             newDetectedDevices.add(device)
                         }
                     }
@@ -249,7 +249,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateUIOnConnectionSuccess(device: BluetoothDevice, button: Button) {
         // Example: Update the UI to show connection success
         PermissionChecker.checkBluetoothConnectionPermission(this) {
-            button.text = "Connected"
+            button.text = "Connected ${device.name}"
         }
     }
 
@@ -265,7 +265,7 @@ class MainActivity : AppCompatActivity() {
         }
 
 
-        public override fun run() {
+        override fun run() {
             super.run()
             bluetoothAdapter.cancelDiscovery()
             mmSocket?.let { socket ->
@@ -291,6 +291,44 @@ class MainActivity : AppCompatActivity() {
                 mmSocket?.close()
             } catch (e: IOException) {
                 Log.e("CONNECT_THREAD", "Could not close the client socket", e)
+            }
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private inner class AcceptThread : Thread() {
+
+        private val mmServerSocket: BluetoothServerSocket? by lazy(LazyThreadSafetyMode.NONE) {
+            bluetoothAdapter.listenUsingInsecureRfcommWithServiceRecord(
+                "NAME",
+                UUID.fromString(MY_UUID)
+            )
+        }
+
+        override fun run() {
+            // Keep listening until exception occurs or a socket is returned.
+            var shouldLoop = true
+            while (shouldLoop) {
+                val socket: BluetoothSocket? = try {
+                    mmServerSocket?.accept()
+                } catch (e: IOException) {
+                    Log.e("ACCEPT_THREAD", "Socket's accept() method failed", e)
+                    shouldLoop = false
+                    null
+                }
+                socket?.also {
+                    mmServerSocket?.close()
+                    shouldLoop = false
+                }
+            }
+        }
+
+        // Closes the connect socket and causes the thread to finish.
+        fun cancel() {
+            try {
+                mmServerSocket?.close()
+            } catch (e: IOException) {
+                Log.e("ACCEPT_THREAD", "Could not close the connect socket", e)
             }
         }
     }
