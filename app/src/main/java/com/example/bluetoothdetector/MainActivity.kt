@@ -43,7 +43,6 @@ class MainActivity : AppCompatActivity() {
             if (result.resultCode == RESULT_OK) {
                 checkBluetoothState()
                 Toast.makeText(this, "Bluetooth has been enabled", Toast.LENGTH_SHORT).show()
-                startBluetoothScanner()
             } else {
                 checkBluetoothState()
                 Toast.makeText(this, "Bluetooth has been disabled", Toast.LENGTH_SHORT).show()
@@ -173,15 +172,18 @@ class MainActivity : AppCompatActivity() {
 
 
     private fun startBluetoothScanner() {
-        PermissionChecker.checkBluetoothConnectionPermission(this){}
+        PermissionChecker.checkBluetoothConnectionPermission(this){
+            bluetoothLeScanner.startScan(scanCallback)
+            binding.progressBar.visibility = View.VISIBLE
+            Handler(Looper.getMainLooper()).postDelayed({
+                bluetoothLeScanner.stopScan(scanCallback)
+                binding.progressBar.visibility = View.INVISIBLE
 
-        Handler(Looper.getMainLooper()).postDelayed({
-            bluetoothLeScanner.stopScan(scanCallback)
-            Log.d("BLE_SCAN", "Scan stopped")
-        }, 10000)
-        bluetoothLeScanner.startScan(scanCallback)
+                Log.d("BLE_SCAN", "Scan stopped")
+            }, 10000)
+        }
         showDetectedDevices()
-
+        showMyDevices()
     }
 
 
@@ -227,7 +229,6 @@ class MainActivity : AppCompatActivity() {
                     binding.progressBar.visibility = View.VISIBLE
                 }
             }
-
         }
     }
 
