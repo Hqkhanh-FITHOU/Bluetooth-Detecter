@@ -34,6 +34,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var myDevices: MutableSet<BluetoothDevice>
     private val newDetectedDevices = mutableSetOf<BluetoothDevice>()
 
+    private var scanning = false
     //private val handlerThread = HandlerThread("BackgroundThread")
 
 
@@ -77,6 +78,7 @@ class MainActivity : AppCompatActivity() {
 
 
         requestForEnableBluetooth()
+        startBluetoothScanner()
 
         binding.discoverBtn.setOnClickListener {
             if (bluetoothAdapter.isEnabled) {
@@ -88,7 +90,7 @@ class MainActivity : AppCompatActivity() {
 
     }
 
-    private val scanCallback = object : ScanCallback() {
+    private val scanCallback : ScanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             super.onScanResult(callbackType, result)
             result?.let {
@@ -172,15 +174,24 @@ class MainActivity : AppCompatActivity() {
 
 
     private fun startBluetoothScanner() {
-        PermissionChecker.checkBluetoothConnectionPermission(this){
-            bluetoothLeScanner.startScan(scanCallback)
-            binding.progressBar.visibility = View.VISIBLE
-            Handler(Looper.getMainLooper()).postDelayed({
-                bluetoothLeScanner.stopScan(scanCallback)
-                binding.progressBar.visibility = View.INVISIBLE
-
-                Log.d("BLE_SCAN", "Scan stopped")
-            }, 10000)
+        if(!scanning){
+            PermissionChecker.checkBluetoothConnectionPermission(this){
+                Handler(Looper.getMainLooper()).postDelayed({
+                    scanning = false
+                    bluetoothLeScanner.stopScan(scanCallback)
+                    binding.progressBar.visibility = View.INVISIBLE
+                    Log.d("BLE_SCAN", "Scan stopped")
+                }, 10000)
+                bluetoothLeScanner.startScan(scanCallback)
+                scanning = true
+                Log.d("BLE_SCAN", "Scanning")
+                binding.progressBar.visibility = View.VISIBLE
+            }
+        }else{
+            scanning = false
+            bluetoothLeScanner.stopScan(scanCallback)
+            binding.progressBar.visibility = View.INVISIBLE
+            Log.d("BLE_SCAN", "Scan stopped")
         }
         showDetectedDevices()
         showMyDevices()
@@ -196,8 +207,6 @@ class MainActivity : AppCompatActivity() {
             binding.text5.visibility = View.GONE
         }
     }
-
-
 
 
 
