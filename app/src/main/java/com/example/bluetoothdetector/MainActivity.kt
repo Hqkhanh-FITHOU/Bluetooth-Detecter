@@ -7,12 +7,18 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
+import android.bluetooth.le.BluetoothLeScanner
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanResult
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Looper
 import android.util.Log
 import android.view.View
 import android.widget.Button
@@ -21,8 +27,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.example.bluetoothdetector.adapter.DeviceItemAdapter
 import com.example.bluetoothdetector.databinding.ActivityMainBinding
-import java.io.IOException
-import java.util.UUID
 
 
 class MainActivity : AppCompatActivity() {
@@ -30,6 +34,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var bluetoothManager: BluetoothManager
     private lateinit var bluetoothAdapter: BluetoothAdapter
+    private lateinit var bluetoothLeScanner: BluetoothLeScanner
 
     private lateinit var myDeviceItemAdapter: DeviceItemAdapter
     private lateinit var newDeviceItemAdapter: DeviceItemAdapter
@@ -37,9 +42,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var myDevices: MutableSet<BluetoothDevice>
     private val newDetectedDevices = mutableSetOf<BluetoothDevice>()
 
-    companion object {
-        const val MY_UUID = "56a294f6-ebea-4ce9-b814-024341c2328a"
-    }
+    //private val handlerThread = HandlerThread("BackgroundThread")
+
 
 
     private val enableBluetoothLauncher =
@@ -47,7 +51,7 @@ class MainActivity : AppCompatActivity() {
             if (result.resultCode == RESULT_OK) {
                 checkBluetoothState()
                 Toast.makeText(this, "Bluetooth has been enabled", Toast.LENGTH_SHORT).show()
-                startBluetoothDiscovery()
+                startBluetoothScanner()
             } else {
                 checkBluetoothState()
                 Toast.makeText(this, "Bluetooth has been disabled", Toast.LENGTH_SHORT).show()
@@ -60,7 +64,7 @@ class MainActivity : AppCompatActivity() {
 //        val locationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
 //
 //        if (bluetoothScanGranted && locationGranted) {
-//            startBluetoothDiscovery()
+//            startBluetoothScanner()
 //        } else {
 //            Toast.makeText(this, "Needs permission to scan bluetooth", Toast.LENGTH_SHORT).show()
 //        }
@@ -74,48 +78,62 @@ class MainActivity : AppCompatActivity() {
 
         bluetoothManager = getSystemService(BluetoothManager::class.java)
         bluetoothAdapter = bluetoothManager.adapter
+        bluetoothLeScanner = bluetoothAdapter.bluetoothLeScanner
 
         newDeviceItemAdapter = DeviceItemAdapter(newDetectedDevices)
-        clickConnectDevice(newDeviceItemAdapter)
+
         binding.newDetectedDevicesRecyclerView.adapter = newDeviceItemAdapter
 
-        Toast.makeText(this, "Bluetooth is available", Toast.LENGTH_SHORT).show()
 
         requestForEnableBluetooth()
 
         binding.discoverBtn.setOnClickListener {
             if (bluetoothAdapter.isEnabled) {
-                startBluetoothDiscovery()
+                startBluetoothScanner()
             } else {
                 requestForEnableBluetooth()
             }
         }
 
-        val acceptThread = AcceptThread()
-        acceptThread.start()
     }
 
-    private fun clickConnectDevice(adapter: DeviceItemAdapter) {
-        Toast.makeText(this@MainActivity, "connecting...", Toast.LENGTH_SHORT)
-            .show()
-        adapter.setOnClickToConnectBluetoothDeviceListener(object :
-            OnClickToConnectBluetoothDeviceListener {
-            override fun clickToConnect(button: Button, device: BluetoothDevice) {
-                if (button.text == "connect") {
-                    try {
-                        val connectThread = ConnectThread(device, button)
-                        connectThread.start()
-                    } catch (e: IOException) {
-                        Toast.makeText(this@MainActivity, e.toString(), Toast.LENGTH_SHORT)
-                            .show()
-                    }
-                } else {
-                    Toast.makeText(this@MainActivity, "Already connected", Toast.LENGTH_SHORT)
-                        .show()
+    private val scanCallback = object : ScanCallback() {
+        override fun onScanResult(callbackType: Int, result: ScanResult?) {
+            super.onScanResult(callbackType, result)
+            result?.let {
+                val device = it.device
+                newDetectedDevices.add(device)
+                updateDetectedRecyclerView()
+                val rssi = it.rssi
+                lateinit var deviceName:String
+                PermissionChecker.checkBluetoothConnectionPermission(this@MainActivity){
+                    deviceName = device.name ?: "Unknown Device"
                 }
+                val deviceAddress = device.address
+                Log.d("BLE_SCAN", "Found device: $deviceName with address: $deviceAddress and RSSI: $rssi")
             }
-        })
+        }
+
+        override fun onBatchScanResults(results: MutableList<ScanResult>?) {
+            super.onBatchScanResults(results)
+            results?.forEach { result ->
+                val device = result.device
+
+                lateinit var deviceName:String
+                PermissionChecker.checkBluetoothConnectionPermission(this@MainActivity){
+                    deviceName = device.name ?: "Unknown Device"
+                }
+                val deviceAddress = device.address
+                Log.d("BLE_SCAN", "Batch found device: $deviceName with address: $deviceAddress")
+            }
+        }
+
+        override fun onScanFailed(errorCode: Int) {
+            super.onScanFailed(errorCode)
+            Log.e("BLE_SCAN", "Scan failed with error: $errorCode")
+        }
     }
+
 
 
     private fun requestForEnableBluetooth() {
@@ -126,7 +144,6 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 Toast.makeText(this, e.toString(), Toast.LENGTH_SHORT).show()
             }
-
 
         }
         checkBluetoothState()
@@ -156,29 +173,23 @@ class MainActivity : AppCompatActivity() {
                 myDevices = bluetoothAdapter.bondedDevices
             }
             myDeviceItemAdapter = DeviceItemAdapter(myDevices)
-            clickConnectDevice(newDeviceItemAdapter)
+
             binding.myDevicesRecyclerView.adapter = myDeviceItemAdapter
             showMyDevices()
         }
     }
 
 
-    private fun startBluetoothDiscovery() {
+    private fun startBluetoothScanner() {
+        PermissionChecker.checkBluetoothConnectionPermission(this){}
 
-        PermissionChecker.checkBluetoothConnectionPermission(this) {
-            if (bluetoothAdapter.isDiscovering) {
-                Toast.makeText(this, "Discovery is already running", Toast.LENGTH_SHORT).show()
-            } else {
-                PermissionChecker.checkBluetoothConnectionPermission(this) {
-                    bluetoothAdapter.startDiscovery()
-                    Toast.makeText(this, "Discovery is running", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-        val filter = IntentFilter(BluetoothDevice.ACTION_FOUND)
-        registerReceiver(receiver, filter)
+        Handler(Looper.getMainLooper()).postDelayed({
+            bluetoothLeScanner.stopScan(scanCallback)
+            Log.d("BLE_SCAN", "Scan stopped")
+        }, 10000)
+        bluetoothLeScanner.startScan(scanCallback)
         showDetectedDevices()
-        showMyDevices()
+
     }
 
 
@@ -193,36 +204,18 @@ class MainActivity : AppCompatActivity() {
     }
 
 
-    private val receiver = object : BroadcastReceiver() {
-
-        override fun onReceive(context: Context?, intent: Intent?) {
-            val action = intent?.action.toString()
-            when (action) {
-                BluetoothDevice.ACTION_FOUND -> {
-                    val device: BluetoothDevice? =
-                        intent?.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
-                    PermissionChecker.checkBluetoothConnectionPermission(this@MainActivity) {
-                        if (device?.name != null) {
-                            newDetectedDevices.add(device)
-                        }
-                    }
-                    updateDetectedRecyclerView()
-                }
-            }
-        }
-    }
 
 
-    @SuppressLint("NotifyDataSetChanged")
+
+
     private fun updateDetectedRecyclerView() {
-        newDeviceItemAdapter.notifyDataSetChanged()
+        newDeviceItemAdapter.notifyItemInserted(newDetectedDevices.size-1)
         showDetectedDevices()
     }
 
 
     override fun onDestroy() {
         super.onDestroy()
-        unregisterReceiver(receiver)
     }
 
 
@@ -246,92 +239,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateUIOnConnectionSuccess(device: BluetoothDevice, button: Button) {
-        // Example: Update the UI to show connection success
-        PermissionChecker.checkBluetoothConnectionPermission(this) {
-            button.text = "Connected ${device.name}"
-        }
-    }
-
-
-    @SuppressLint("MissingPermission")
-    private inner class ConnectThread(
-        private val bluetoothDevice: BluetoothDevice,
-        private var button: Button
-    ) : Thread() {
-
-        private val mmSocket: BluetoothSocket? by lazy(LazyThreadSafetyMode.NONE) {
-            bluetoothDevice.createRfcommSocketToServiceRecord(UUID.fromString(MY_UUID))
-        }
-
-
-        override fun run() {
-            super.run()
-            bluetoothAdapter.cancelDiscovery()
-            mmSocket?.let { socket ->
-                try {
-                    socket.connect()
-                    runOnUiThread {
-                        Log.d("CONNECT_THREAD", "Connected to ${bluetoothDevice.name}}")
-                        updateUIOnConnectionSuccess(bluetoothDevice, button)
-                    }
-                } catch (e: IOException) {
-                    e.printStackTrace()
-                    runOnUiThread {
-                        Toast.makeText(this@MainActivity, "Connection failed", Toast.LENGTH_SHORT)
-                            .show()
-                    }
-                }
-            }
-        }
-
-        // Closes the client socket and causes the thread to finish.
-        fun cancel() {
-            try {
-                mmSocket?.close()
-            } catch (e: IOException) {
-                Log.e("CONNECT_THREAD", "Could not close the client socket", e)
-            }
-        }
-    }
-
-    @SuppressLint("MissingPermission")
-    private inner class AcceptThread : Thread() {
-
-        private val mmServerSocket: BluetoothServerSocket? by lazy(LazyThreadSafetyMode.NONE) {
-            bluetoothAdapter.listenUsingInsecureRfcommWithServiceRecord(
-                "NAME",
-                UUID.fromString(MY_UUID)
-            )
-        }
-
-        override fun run() {
-            // Keep listening until exception occurs or a socket is returned.
-            var shouldLoop = true
-            while (shouldLoop) {
-                val socket: BluetoothSocket? = try {
-                    mmServerSocket?.accept()
-                } catch (e: IOException) {
-                    Log.e("ACCEPT_THREAD", "Socket's accept() method failed", e)
-                    shouldLoop = false
-                    null
-                }
-                socket?.also {
-                    mmServerSocket?.close()
-                    shouldLoop = false
-                }
-            }
-        }
-
-        // Closes the connect socket and causes the thread to finish.
-        fun cancel() {
-            try {
-                mmServerSocket?.close()
-            } catch (e: IOException) {
-                Log.e("ACCEPT_THREAD", "Could not close the connect socket", e)
-            }
-        }
-    }
 
 }
 

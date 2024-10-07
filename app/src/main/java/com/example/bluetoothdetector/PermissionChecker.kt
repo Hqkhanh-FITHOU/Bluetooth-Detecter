@@ -27,7 +27,6 @@ class PermissionChecker {
             }else{
                 ActivityCompat.requestPermissions(context as Activity, permissions, REQUEST_BLUETOOTH_PERMISSIONS)
             }
-            Log.d("PermissionChecker", "Version SDK: ${Build.VERSION.SDK_INT}")
         }
     }
 
