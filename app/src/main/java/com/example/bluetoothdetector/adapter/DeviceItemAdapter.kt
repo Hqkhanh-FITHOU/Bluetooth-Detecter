@@ -1,21 +1,20 @@
 package com.example.bluetoothdetector.adapter
 
-import android.Manifest
 import android.bluetooth.BluetoothDevice
-import android.content.pm.PackageManager
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
-import androidx.core.app.ActivityCompat
 import androidx.recyclerview.widget.RecyclerView
+import com.example.bluetoothdetector.BluetoothLeService
 import com.example.bluetoothdetector.OnClickToConnectBluetoothDeviceListener
 import com.example.bluetoothdetector.PermissionChecker
 import com.example.bluetoothdetector.R
 
 class DeviceItemAdapter(
-    private val list: Set<BluetoothDevice>,
+    private val list: MutableList<BluetoothDevice>,
     private var onClickToConnectBluetoothDeviceListener: OnClickToConnectBluetoothDeviceListener? = null
 ) : RecyclerView.Adapter<DeviceItemAdapter.DeviceItemHolder>() {
 
@@ -36,13 +35,21 @@ class DeviceItemAdapter(
         val device = list.elementAt(position)
 
         PermissionChecker.checkBluetoothConnectionPermission(holder.itemView.context){
-            holder.deviceName.text = device.name
+            holder.deviceName.text = if (device.name == null)  "Unknown Device" else device.name
         }
         holder.physicalAddress.text = device.address
         holder.buttonConnect.setOnClickListener {
             onClickToConnectBluetoothDeviceListener?.clickToConnect(holder.buttonConnect, device)
         }
     }
+
+    fun addItemToEnd(device: BluetoothDevice){
+        if(device !in list){
+            list.add(device)
+            notifyItemInserted(list.size - 1)
+        }
+    }
+
 
     override fun getItemCount(): Int {
         if(list.isEmpty()){

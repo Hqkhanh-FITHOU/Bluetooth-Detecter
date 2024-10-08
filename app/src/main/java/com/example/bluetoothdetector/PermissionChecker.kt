@@ -1,19 +1,17 @@
 package com.example.bluetoothdetector
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
 class PermissionChecker {
 
     companion object {
-        public const val REQUEST_BLUETOOTH_PERMISSIONS:Int = 124
+        const val REQUEST_BLUETOOTH_PERMISSIONS:Int = 124
 
         fun checkBluetoothConnectionPermission(context: Context, onPermissionGranted: () -> Unit) {
             val permissions = if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S){

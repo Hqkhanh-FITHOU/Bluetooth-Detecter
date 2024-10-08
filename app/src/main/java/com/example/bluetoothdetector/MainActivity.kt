@@ -7,13 +7,21 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
+import android.content.BroadcastReceiver
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
+import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import android.view.View
+import android.widget.Button
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -27,14 +35,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var bluetoothManager: BluetoothManager
     private lateinit var bluetoothAdapter: BluetoothAdapter
     private lateinit var bluetoothLeScanner: BluetoothLeScanner
+    private var bluetoothLeService : BluetoothLeService? = null
 
     private lateinit var myDeviceItemAdapter: DeviceItemAdapter
     private lateinit var newDeviceItemAdapter: DeviceItemAdapter
 
-    private lateinit var myDevices: MutableSet<BluetoothDevice>
-    private val newDetectedDevices = mutableSetOf<BluetoothDevice>()
+    private lateinit var myDevices: MutableList<BluetoothDevice>
+    private val newDetectedDevices = mutableListOf<BluetoothDevice>()
 
     private var scanning = false
+    private var connected = false
+    private var deviceAddress = ""
     //private val handlerThread = HandlerThread("BackgroundThread")
 
 
@@ -51,16 +62,22 @@ class MainActivity : AppCompatActivity() {
         }
 
 
-//    private val requestPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()){ permissions ->
-//        val bluetoothScanGranted = permissions[Manifest.permission.BLUETOOTH_SCAN] ?: false
-//        val locationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
-//
-//        if (bluetoothScanGranted && locationGranted) {
-//            startBluetoothScanner()
-//        } else {
-//            Toast.makeText(this, "Needs permission to scan bluetooth", Toast.LENGTH_SHORT).show()
-//        }
-//    }
+    private val serviceConnection : ServiceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            bluetoothLeService = (service as BluetoothLeService.LocalBinder).getService()
+            bluetoothLeService!!.setContext(this@MainActivity)
+            bluetoothLeService?.let { bluetooth ->
+                if (!bluetooth.initialize()) {
+                    Log.e("BLE Service", "Unable to initialize Bluetooth")
+                    finish()
+                }
+            }
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            bluetoothLeService = null
+        }
+    }
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -78,7 +95,18 @@ class MainActivity : AppCompatActivity() {
 
 
         requestForEnableBluetooth()
-        startBluetoothScanner()
+
+        val gattServiceIntent = Intent(this@MainActivity, BluetoothLeService::class.java)
+        bindService(gattServiceIntent, serviceConnection, BIND_AUTO_CREATE)
+
+        newDeviceItemAdapter.setOnClickToConnectBluetoothDeviceListener(object : OnClickToConnectBluetoothDeviceListener{
+            override fun clickToConnect(button: Button, device: BluetoothDevice) {
+                Log.d("MAIN","item clicked")
+                deviceAddress = device.address
+                bluetoothLeService?.connect(device.address)
+            }
+        })
+
 
         binding.discoverBtn.setOnClickListener {
             if (bluetoothAdapter.isEnabled) {
@@ -88,7 +116,10 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        startBluetoothScanner()
     }
+
+
 
     private val scanCallback : ScanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
@@ -96,7 +127,7 @@ class MainActivity : AppCompatActivity() {
             result?.let {
                 val device = it.device
                 newDetectedDevices.add(device)
-                updateDetectedRecyclerView()
+                newDeviceItemAdapter.addItemToEnd(device)
                 val rssi = it.rssi
                 lateinit var deviceName:String
                 PermissionChecker.checkBluetoothConnectionPermission(this@MainActivity){
@@ -129,6 +160,70 @@ class MainActivity : AppCompatActivity() {
 
 
 
+    private val gattUpdateReceiver : BroadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                BluetoothLeService.ACTION_GATT_CONNECTED -> {
+                    connected = true
+                    updateConnectionState(R.string.connected)
+                }
+                BluetoothLeService.ACTION_GATT_DISCONNECTED -> {
+                    connected = false
+                    updateConnectionState(R.string.disconnected)
+                }
+            }
+        }
+    }
+
+
+
+    private fun updateConnectionState(connected: Int) {
+        when(connected){
+            R.string.connected -> {
+                Toast.makeText(this, "connected with device address: " + deviceAddress, Toast.LENGTH_SHORT).show()
+            }
+            R.string.disconnected -> {
+                Toast.makeText(this, "cannot connected with device address: " + deviceAddress, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+
+
+    override fun onResume() {
+        super.onResume()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(gattUpdateReceiver, makeGattUpdateIntentFilter(), RECEIVER_EXPORTED)
+            Log.d("BLE Service", "BLE Service has registered")
+        }else{
+            registerReceiver(gattUpdateReceiver, makeGattUpdateIntentFilter())
+            Log.d("BLE Service", "BLE Service has registered")
+        }
+        if (bluetoothLeService != null) {
+            val result = bluetoothLeService!!.connect(deviceAddress)
+            Log.d("BLE Service", "Connect request result=$result")
+        }
+    }
+
+
+
+    private fun makeGattUpdateIntentFilter(): IntentFilter {
+        return IntentFilter().apply {
+            addAction(BluetoothLeService.ACTION_GATT_CONNECTED)
+            addAction(BluetoothLeService.ACTION_GATT_DISCONNECTED)
+        }
+    }
+
+
+
+    override fun onPause() {
+        super.onPause()
+        unregisterReceiver(gattUpdateReceiver)
+        Log.d("BLE Service", "BLE Service has unregistered")
+    }
+
+
+
     private fun requestForEnableBluetooth() {
         PermissionChecker.checkBluetoothConnectionPermission(this) {
             try {
@@ -155,6 +250,7 @@ class MainActivity : AppCompatActivity() {
     }
 
 
+
     private fun checkBluetoothState() {
         if (!bluetoothAdapter.isEnabled) {
             binding.text1.text = "Bluetooth is disabled"
@@ -163,7 +259,7 @@ class MainActivity : AppCompatActivity() {
             binding.text1.text = "Bluetooth is enabled"
 
             PermissionChecker.checkBluetoothConnectionPermission(this) {
-                myDevices = bluetoothAdapter.bondedDevices
+                myDevices = bluetoothAdapter.bondedDevices.toMutableList()
             }
             myDeviceItemAdapter = DeviceItemAdapter(myDevices)
 
@@ -173,19 +269,26 @@ class MainActivity : AppCompatActivity() {
     }
 
 
+
     private fun startBluetoothScanner() {
         if(!scanning){
             PermissionChecker.checkBluetoothConnectionPermission(this){
-                Handler(Looper.getMainLooper()).postDelayed({
-                    scanning = false
-                    bluetoothLeScanner.stopScan(scanCallback)
-                    binding.progressBar.visibility = View.INVISIBLE
-                    Log.d("BLE_SCAN", "Scan stopped")
-                }, 10000)
                 bluetoothLeScanner.startScan(scanCallback)
                 scanning = true
                 Log.d("BLE_SCAN", "Scanning")
                 binding.progressBar.visibility = View.VISIBLE
+                binding.discoverBtn.text = "Discovering"
+                binding.discoverBtn.isEnabled = false
+                showDetectedDevices()
+                Handler(Looper.getMainLooper()).postDelayed({
+                    scanning = false
+                    bluetoothLeScanner.stopScan(scanCallback)
+                    binding.discoverBtn.text = "Discovery"
+                    binding.discoverBtn.isEnabled = true
+                    binding.progressBar.visibility = View.INVISIBLE
+                    showDetectedDevices()
+                    Log.d("BLE_SCAN", "Scan stopped")
+                }, 10000)
             }
         }else{
             scanning = false
@@ -193,9 +296,10 @@ class MainActivity : AppCompatActivity() {
             binding.progressBar.visibility = View.INVISIBLE
             Log.d("BLE_SCAN", "Scan stopped")
         }
-        showDetectedDevices()
+
         showMyDevices()
     }
+
 
 
     private fun showDetectedDevices() {
@@ -209,17 +313,6 @@ class MainActivity : AppCompatActivity() {
     }
 
 
-
-
-    private fun updateDetectedRecyclerView() {
-        newDeviceItemAdapter.notifyItemInserted(newDetectedDevices.size-1)
-        showDetectedDevices()
-    }
-
-
-    override fun onDestroy() {
-        super.onDestroy()
-    }
 
 
     override fun onRequestPermissionsResult(
