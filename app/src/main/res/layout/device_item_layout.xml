@@ -18,14 +18,14 @@
 
         <LinearLayout
             android:id="@+id/info_device"
-            android:layout_width="wrap_content"
+            android:layout_width="210dp"
             android:layout_height="wrap_content"
             android:paddingStart="15dp"
             android:orientation="vertical">
 
             <TextView
                 android:id="@+id/diviceName"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Divice name"
                 android:textSize="16dp"
@@ -33,7 +33,7 @@
 
             <TextView
                 android:id="@+id/physicalAddress"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="Physical address"/>
 

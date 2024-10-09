@@ -35,7 +35,7 @@ class DeviceItemAdapter(
         val device = list.elementAt(position)
 
         PermissionChecker.checkBluetoothConnectionPermission(holder.itemView.context){
-            holder.deviceName.text = if (device.name == null)  "Unknown Device" else device.name
+            holder.deviceName.text = device.name
         }
         holder.physicalAddress.text = device.address
         holder.buttonConnect.setOnClickListener {

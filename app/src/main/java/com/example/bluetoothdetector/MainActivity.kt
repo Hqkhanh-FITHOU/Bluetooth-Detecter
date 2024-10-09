@@ -3,7 +3,10 @@ package com.example.bluetoothdetector
 
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
@@ -71,6 +74,7 @@ class MainActivity : AppCompatActivity() {
                     Log.e("BLE Service", "Unable to initialize Bluetooth")
                     finish()
                 }
+                Log.e("BLE Service", "Initialize Bluetooth")
             }
         }
 
@@ -96,14 +100,13 @@ class MainActivity : AppCompatActivity() {
 
         requestForEnableBluetooth()
 
-        val gattServiceIntent = Intent(this@MainActivity, BluetoothLeService::class.java)
-        bindService(gattServiceIntent, serviceConnection, BIND_AUTO_CREATE)
-
         newDeviceItemAdapter.setOnClickToConnectBluetoothDeviceListener(object : OnClickToConnectBluetoothDeviceListener{
             override fun clickToConnect(button: Button, device: BluetoothDevice) {
-                Log.d("MAIN","item clicked")
+                Log.d("MAIN","item ${device.address} clicked")
                 deviceAddress = device.address
-                bluetoothLeService?.connect(device.address)
+                PermissionChecker.checkBluetoothConnectionPermission(this@MainActivity){
+                    val bluetoothGatt = device.connectGatt(this@MainActivity, false, bluetoothGattCallback)
+                }
             }
         })
 
@@ -119,22 +122,33 @@ class MainActivity : AppCompatActivity() {
         startBluetoothScanner()
     }
 
-
+    private val bluetoothGattCallback = object : BluetoothGattCallback() {
+        override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
+            if (newState == BluetoothProfile.STATE_CONNECTED) {
+                // successfully connected to the GATT Server
+                Log.d(BluetoothLeService.BLE_SERVICE, "BLE Gatt connected")
+            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                // disconnected from the GATT Server
+                Log.d(BluetoothLeService.BLE_SERVICE, "BLE Gatt disconnected")
+            }
+        }
+    }
 
     private val scanCallback : ScanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             super.onScanResult(callbackType, result)
             result?.let {
                 val device = it.device
-                newDetectedDevices.add(device)
-                newDeviceItemAdapter.addItemToEnd(device)
-                val rssi = it.rssi
-                lateinit var deviceName:String
-                PermissionChecker.checkBluetoothConnectionPermission(this@MainActivity){
-                    deviceName = device.name ?: "Unknown Device"
+                if(device.name != null){
+                    newDeviceItemAdapter.addItemToEnd(device)
+                    val rssi = it.rssi
+                    lateinit var deviceName:String
+                    PermissionChecker.checkBluetoothConnectionPermission(this@MainActivity){
+                        deviceName = device.name ?: "Unknown Device"
+                    }
+                    val deviceAddress = device.address
+                    Log.d("BLE_SCAN", "Found device: $deviceName with address: $deviceAddress and RSSI: $rssi")
                 }
-                val deviceAddress = device.address
-                Log.d("BLE_SCAN", "Found device: $deviceName with address: $deviceAddress and RSSI: $rssi")
             }
         }
 
@@ -180,24 +194,31 @@ class MainActivity : AppCompatActivity() {
     private fun updateConnectionState(connected: Int) {
         when(connected){
             R.string.connected -> {
-                Toast.makeText(this, "connected with device address: " + deviceAddress, Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "connected with device address: $deviceAddress", Toast.LENGTH_SHORT).show()
+                Log.d(BluetoothLeService.BLE_SERVICE,"connected with device address: $deviceAddress")
             }
             R.string.disconnected -> {
-                Toast.makeText(this, "cannot connected with device address: " + deviceAddress, Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "cannot connected with device address: $deviceAddress", Toast.LENGTH_SHORT).show()
+                Log.d(BluetoothLeService.BLE_SERVICE,"cannot connected with device address: $deviceAddress")
             }
         }
     }
 
-
+    override fun onStart() {
+        super.onStart()
+        val gattServiceIntent = Intent(this@MainActivity, BluetoothLeService::class.java)
+        bindService(gattServiceIntent, serviceConnection, BIND_AUTO_CREATE)
+    }
 
     override fun onResume() {
         super.onResume()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        Log.d("MainActivity", "OnResume")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             registerReceiver(gattUpdateReceiver, makeGattUpdateIntentFilter(), RECEIVER_EXPORTED)
-            Log.d("BLE Service", "BLE Service has registered")
+            Log.d("BLE Service", "BLE Gatt receiver has registered")
         }else{
             registerReceiver(gattUpdateReceiver, makeGattUpdateIntentFilter())
-            Log.d("BLE Service", "BLE Service has registered")
+            Log.d("BLE Service", "BLE Gatt receiver has registered")
         }
         if (bluetoothLeService != null) {
             val result = bluetoothLeService!!.connect(deviceAddress)
@@ -219,7 +240,7 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         unregisterReceiver(gattUpdateReceiver)
-        Log.d("BLE Service", "BLE Service has unregistered")
+        Log.d("BLE Service", "BLE Gatt receiver has unregistered")
     }
 
 
